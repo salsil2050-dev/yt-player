@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Search & Player</title>
+<style>
+    body { font-family: Arial, sans-serif; background-color: #f1f1f1; }
+
+    .container { max-width: 800px; margin: 40px auto; padding: 20px; background-color: #fff; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); height: 80vh; overflow-y: scroll; }
+
+    .search-bar { display: flex; margin-bottom: 20px; }
+
+    .search-bar input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px 0 0 5px; }
+
+    .search-bar button { padding: 10px 20px; background-color: #4CAF50; color: #fff; border: none; border-radius: 0 5px 5px 0; cursor: pointer; }
+
+    .results { margin-bottom: 20px; }
+
+    .result-item { display: flex; margin-bottom: 20px; padding: 10px; border-bottom: 1px solid #ccc; cursor: pointer; }
+
+    .result-item img { width: 150px; height: 120px; margin-right: 10px; border-radius: 5px; }
+
+    .result-item .info { flex: 1; }
+
+    .result-item .info p { margin-top: 0; }
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url('01.jpg');
+  background-size: cover;
+  background-position: center;
+  z-index: 999;
+  display: none;
+  filter: blur(0.5px); /* Fixed: filter-blur is not a property */
+}
+
+    .popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+
+.popup-content {
+  width: 95%; 
+  max-width: 1200px; 
+  height: auto; 
+  margin: 0 auto;
+  background-color: #000; /* Black background for cinematic look */
+  padding: 5px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* UPDATED FOR 21:9 RATIO */
+#player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 21 / 9; /* Cinematic Ratio */
+  background: #000;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+#player iframe { 
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  border: none;
+}
+
+    .close-btn { position: absolute; bottom: -36px; left: 20px; width: 80px; height: 80px; border-radius: 50%; background-color: #fff; border: 5px solid black; cursor: pointer; font-size: 18px; font-weight: bold; }
+
+    .tx { position: absolute; bottom: -45px; left: 145px; font-size: 30px; font-weight: bold; letter-spacing: normal; color: #fff !important; background-color: red; padding: 5px; border-radius: 5px; width: 170px; text-align: center; }
+  </style>
+
+</head>
+<body>
+  <div class="container">
+    <h1>MyTube Player</h1>
+    <div class="search-bar">
+      <input id="search-query" type="text" placeholder="Search YouTube">
+      <button id="search-btn">Search</button>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+
+
+<div class="overlay" onclick="closePopup()"></div>
+  <div class="popup" id="popup">
+    <div class="popup-content">
+      <div id="player">
+        <iframe id="youtube-player" frameborder="0" allowfullscreen allow="autoplay"></iframe>
+        <div class="video-end" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; z-index: 10;"></div>
+      </div>
+      <button class="close-btn" onclick="closePopup()">CLOSE</button>
+      <span class="tx">KrishaS<br>Player</span>
+    </div>
+  </div>
+
+  <!-- YouTube IFrame API script -->
+  <script src="https://www.youtube.com"></script>
+
+  <script>
+    let query = '';
+    let nextPageToken = '';
+    let fetching = false;
+    const API_KEY = 'AIzaSyDlIL4kUKGv3hDEXRzqbGQHGSisFvBAjh0'; 
+
+    document.getElementById('search-btn').addEventListener('click', () => {
+      query = document.getElementById('search-query').value;
+      nextPageToken = '';
+      document.getElementById('results').innerHTML = '';
+      fetchResults(query);
+    });
+
+    window.addEventListener('scroll', () => {
+      const container = document.querySelector('.container');
+      if (container.scrollHeight - container.scrollTop === container.clientHeight && !fetching) {
+        fetching = true;
+        fetchResults(query);
+      }
+    });
+
+    function fetchResults(query) {
+      const apiUrl = `https://www.googleapis.com{query}&key=${API_KEY}&type=video&maxResults=5${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;                                                                                                                                 
+      console.log('Fetching:', apiUrl);
+      fetch(apiUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Data received:', data);
+          if (data.error) {
+            throw new Error(data.error.message);
+          }
+          appendResults(data);
+          nextPageToken = data.nextPageToken || '';
+          fetching = false;
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          fetching = false;
+          document.getElementById('results').innerHTML = `
+            <p>Error loading data: ${error.message}</p>
+            <p>Check console for details.</p>
+          `;
+        });
+    }
+
+    function appendResults(data) {
+      const resultsDiv = document.getElementById('results');
+      data.items.forEach(item => {
+        const videoId = item.id.videoId;
+        const title = item.snippet.title;
+        const thumbnail = item.snippet.thumbnails.medium.url;
+        resultsDiv.innerHTML += `
+          <div class="result-item" onclick="playVideo('${videoId}')">
+            <img src="${thumbnail}">
+            <div class="info">
+              <p>${title}</p>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+function playVideo(videoId) {
+  try {
+    console.log(`Playing video: ${videoId}`);
+    document.querySelector('.overlay').style.display = 'block';
+    document.getElementById('youtube-player').src = `https://www.youtube.com{videoId}?enablejsapi=1&autoplay=1&rel=0`;
+    document.getElementById('popup').style.display = 'flex';
+  } catch (error) {
+    console.error('Error playing video:', error);
+  }
+
+  // Initializing Player Object (Required for your checkTime function)
+  new YT.Player('youtube-player', {
+    events: {
+      'onStateChange': (event) => {
+        if (event.data == YT.PlayerState.PLAYING) {
+          checkTime();
+        }
+        if (event.data == YT.PlayerState.ENDED) {
+          document.querySelector('.overlay').style.display = 'block';
+        }
+      }
+    }
+  });
+}
+
+function checkTime() {
+  const player = YT.get('youtube-player');
+  if(!player) return;
+  const endTime = player.getDuration() - 10; 
+  const videoEndOverlay = document.querySelector('.video-end');
+  const timer = setInterval(() => {
+    if (document.getElementById('popup').style.display === 'none') {
+        clearInterval(timer);
+        return;
+    }
+    const currentTime = player.getCurrentTime();
+    if (currentTime >= endTime) {
+      videoEndOverlay.style.display = 'block';
+      clearInterval(timer);
+    }
+  }, 1000); 
+}
+
+function closePopup() {
+  try {
+    console.log('Closing popup');
+    document.querySelector('.overlay').style.display = 'none';
+    document.getElementById('popup').style.display = 'none';
+    document.getElementById('youtube-player').src = '';
+    document.querySelector('.video-end').style.display = 'none';
+  } catch (error) {
+    console.error('Error closing popup:', error);
+  }
+}
+  </script>
+</body>
+</html>
